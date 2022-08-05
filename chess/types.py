@@ -3,6 +3,7 @@ __all__ = ['Piece', 'Position']
 
 
 class PieceMetaclass(type):
+    """Piece metaclass used to instantiate all pieces upon class creation."""
 
     def __new__(mcs, name, bases, attrs):
         cls = super().__new__(mcs, name, bases, attrs)
@@ -14,6 +15,15 @@ class PieceMetaclass(type):
 
 
 class Piece(metaclass=PieceMetaclass):
+    """Represent a piece type (role and color).
+
+    >>> a = Piece(Piece.ROOK, Piece.WHITE)
+    >>> b = Piece(Piece.ROOK, Piece.WHITE)
+    >>> a is b
+    True
+    >>> Piece(Piece.KING, Piece.BLACK) is Piece.BLACK_KING
+    True
+    """
 
     WHITE = 0
     BLACK = 1
@@ -40,6 +50,7 @@ class Piece(metaclass=PieceMetaclass):
     __cached_pieces = {}
 
     def __new__(cls, role, color):
+        """Avoid instancing twice the same piece."""
         if (role, color) not in cls.__cached_pieces:
             cls.__cached_pieces[role, color] = super().__new__(cls)
         return cls.__cached_pieces[role, color]
@@ -79,6 +90,20 @@ class Piece(metaclass=PieceMetaclass):
         return icon
 
     def as_bitstring(self):
+        """Returns a 4 bits representation of the piece.
+
+        The first bit gives the color:
+            0 White
+            1 Black
+
+        The next 3 bits represent the role:
+            000 Pawn
+            001 King
+            100 Queen
+            101 Rook
+            110 Knight
+            111 Bishop
+        """
         bitstring = str(self.color) + bin(self.role)[2:].zfill(3)
         return bitstring
 
@@ -87,6 +112,13 @@ class Position:
 
     @property
     def castles(self):
+        """Possible castles.
+
+        - WOO: White may O-O
+        - WOOO: White may O-O-O
+        - BOO: Black may O-O
+        - BOOO: Black may O-O-O
+        """
         return {
             'WOO': self._castles & 8 == 8,
             'WOOO': self._castles & 4 == 4,
@@ -96,6 +128,16 @@ class Position:
 
     @castles.setter
     def castles(self, value):
+        """Possible castles can be given as:
+            - A dict mapping the castle type ('WOO', 'WOOO', 'BOO', 'BOOO') to a boolean
+              (False values may be omitted)
+            - A 4-uple or list of booleans in order (WOO, WOOO, BOO, BOOO)
+            - A 4-bit string in order mentionned above (may be prefixed with 0b or not)
+            - The integer representation of the 4-bit string mentionned above
+
+        May also be set to None, in which case, possible castles will be guessed according
+        to the position of the kings and rooks.
+        """
         if value is None:
             value = self._guess_castles()
         if isinstance(value, dict):
@@ -117,6 +159,7 @@ class Position:
 
     @property
     def enpassant(self):
+        """The column of the pawn that maybe captured en-passant if any. None otherwise."""
         if self._enpassant > 0:
             return self._enpassant - 2**3
         else:
@@ -212,6 +255,32 @@ class Position:
                 return pos
 
     def as_bitstring(self):
+        """Returns a bitstring representation of the position.
+
+        The right-most bit represents the next color to move.
+
+        The next 4 bits represents possible castles.
+
+        If white king's position cannot be infered from possible castles,
+        its position is encoded on the next 6 bits.
+
+        If black king's position cannot be infered from possible castles,
+        its position is encoded on the next 6 bits.
+
+        The next bit represents the possibility of an en-passant capture.
+        In such case, the column of the capturable pawn is encoded on the next 
+        3 bits.
+
+        Then for each cell from a1 to h8, omitting the kings cells and the
+        "castleable" rooks cells:
+
+            If the cell is empty, it is encoded with a single 0. Otherwise,
+            it is encoded with a 1, followed one bit for the piece color,
+            followed by the piece role:
+                - Two bits representation of the role for a piece on the first or last row
+                - A single 0 for a pawn
+                - A 1 followed by two bits representation of the role otherwise.
+        """
         bitstring = ''
         bitstring += str(self.next_to_move)
         bitstring += bin(self._castles)[2:].zfill(4)
@@ -245,22 +314,27 @@ class Position:
 
     def _guess_castles(self):
         return {
-            'WOO': self._guess_castle('H1'),
-            'WOOO': self._guess_castle('A1'),
-            'BOO': self._guess_castle('H8'),
-            'BOOO': self._guess_castle('A8'),
+            'WOO': self._guess_castle('h1'),
+            'WOOO': self._guess_castle('a1'),
+            'BOO': self._guess_castle('h8'),
+            'BOOO': self._guess_castle('a8'),
         }
 
     def _guess_castle(self, rook_pos):
         color = Piece.WHITE if rook_pos[1] == '1' else Piece.BLACK
         rook = self[rook_pos]
-        king = self['E' + rook_pos[1]]
+        king = self['e' + rook_pos[1]]
         if rook is None or king is None:
             return False
         return rook == Piece(Piece.ROOK, color) and king == Piece(Piece.KING, color)
 
     @classmethod
     def decompress(cls, bitstring):
+        """Restore a Position instance from a compressed bitstring
+        or its integer representation.
+
+        Reverse process of as_bitstring()
+        """
         position = cls()
         if isinstance(bitstring, int):
             bitstring = bin(bitstring)[2:]
@@ -292,7 +366,7 @@ class Position:
         position[b_king_pos] = Piece.BLACK_KING
 
         if bitstring[0] == '1':
-            position.enpassant = int(bitstring[1:4], 2)
+            position._enpassant = int(bitstring[1:4], 2)
             bitstring = bitstring[4:]
         else:
             bitstring = bitstring[1:]
@@ -323,6 +397,7 @@ class Position:
 
     @classmethod
     def initial(cls):
+        """Returns the initial position of a chess board."""
         row_1 = [
             Piece(role, Piece.WHITE)
             for role in [
@@ -365,7 +440,3 @@ class Position:
         elif not isinstance(pos, int):
             raise KeyError(f"Invalid cell identifier: {pos!r}")
         return pos
-
-
-class Game:
-    ...
