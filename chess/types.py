@@ -1,4 +1,6 @@
 # Copyright (c) 2022 Antoine Pinsard
+import re
+
 __all__ = ['Piece', 'Position']
 
 
@@ -46,6 +48,7 @@ class Piece(metaclass=PieceMetaclass):
         KNIGHT: "Knight",
         BISHOP: "Bishop",
     }
+
 
     __cached_pieces = {}
 
@@ -106,6 +109,32 @@ class Piece(metaclass=PieceMetaclass):
         """
         bitstring = str(self.color) + bin(self.role)[2:].zfill(3)
         return bitstring
+
+    def as_fen(self):
+        c = {
+            self.KING: 'K',
+            self.QUEEN: 'Q',
+            self.ROOK: 'R',
+            self.BISHOP: 'B',
+            self.KNIGHT: 'N',
+            self.PAWN: 'P',
+        }.get(self.role)
+        if self.color is self.BLACK:
+            c = c.lower()
+        return c
+
+    @classmethod
+    def from_fen(cls, fen):
+        color = int(fen.islower())
+        role = {
+            'K': cls.KING,
+            'Q': cls.QUEEN,
+            'R': cls.ROOK,
+            'B': cls.BISHOP,
+            'N': cls.KNIGHT,
+            'P': cls.PAWN,
+        }.get(fen.upper())
+        return cls(role, color)
 
 
 class Position:
@@ -304,6 +333,49 @@ class Position:
         bitstring = bitstring[::-1]
         return bitstring
 
+    def as_fen(self):
+        fen = ''
+        for row in range(7, -1, -1):
+            for col in range(8):
+                cell = self[col,row]
+                if cell is None:
+                    fen += '1'
+                else:
+                    fen += cell.as_fen()
+            fen += '/'
+        fen = re.sub('1+', lambda m: str(len(m[0])), fen[:-1])
+
+        fen += ' '
+        if self.next_to_move == Piece.WHITE:
+            fen += 'w'
+        else:
+            fen += 'b'
+
+        fen += ' '
+        if any(self.castles.values()):
+            if self.castles['WOO']:
+                fen += 'K'
+            if self.castles['WOOO']:
+                fen += 'Q'
+            if self.castles['BOO']:
+                fen += 'k'
+            if self.castles['BOOO']:
+                fen += 'q'
+        else:
+            fen += '-'
+
+        fen += ' '
+        if self.enpassant:
+            fen += chr(ord('a') + self.enpassant)
+            if self.next_to_move == Piece.WHITE:
+                fen += '6'
+            else:
+                fen += '3'
+        else:
+            fen += '-'
+
+        return fen
+
     def _is_deterministic_cell(self, pos, piece):
         king = piece and piece.role == Piece.KING
         a1 = pos == 0 and self.castles['WOOO']
@@ -392,6 +464,39 @@ class Position:
                 position[pos] = Piece(role, color)
             i += 1
             pos += 1
+
+        return position
+
+    @classmethod
+    def load_fen(cls, fen):
+        position = cls()
+        parts = fen.split()
+
+        rows = parts[0].split('/')
+        for i, row in enumerate(rows):
+            col = 0
+            for c in row:
+                if c.isnumeric():
+                    for j in range(int(c)):
+                        position[col,7-i] = None
+                        col += 1
+                else:
+                    position[col,7-i] = Piece.from_fen(c)
+                    col += 1
+
+        if len(parts) > 1 and parts[1] == 'b':
+            position.next_to_move = Piece.BLACK
+
+        if len(parts) > 2:
+            position.castles['WOO'] = 'K' in parts[2]
+            position.castles['WOOO'] = 'Q' in parts[2]
+            position.castles['BOO'] = 'k' in parts[2]
+            position.castles['BOOO'] = 'q' in parts[2]
+        else:
+            position._guess_castles()
+
+        if len(parts) > 3 and parts[3] != '-':
+            position.enpassant = ord('a') - ord(parts[3][0].lower())
 
         return position
 
