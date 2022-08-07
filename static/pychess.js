@@ -17,19 +17,24 @@ class Position {
       self.id = data.id;
       self.setMoves(data.moves);
     });
+    this.board.position(fen);
   }
 
   setMoves(moves) {
     this.moves = moves;
     let list = '<dl>';
     for (const [k, v] of Object.entries(moves)) {
-      let title = k;
-      let comment = "";
-      if ('rate' in v)
-        title += ` (${v.rate})`;
-      if ('comment' in v)
-        comment = v.comment;
-      list += `<dt>${title}</dt><dd>${comment}</dd>`;
+      const comment = v.comment || '';
+      let moveClass = 'unrated-move';
+      if ('rate' in v) {
+        if (v.rate > 0)
+          moveClass = 'best-move';
+        else if (v.rate < 0)
+          moveClass = 'mistake-move';
+        else
+          moveClass = 'playable-move';
+      }
+      list += `<dt class="${moveClass}">${k}</dt><dd>${comment}</dd>`;
     }
     list += '</dl>';
     document.getElementById('moves').innerHTML = list;
@@ -93,11 +98,28 @@ const board = Chessboard('board', {
       return 'snapback';
   },
   onSnapEnd: function() {
-    const fen = game.fen();
-    board.position(fen);
     position.update();
   },
 });
 
 
 const position = new Position(game, board);
+
+document.getElementById('addMove').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const fd = new FormData(event.target);
+  const move = fd.get('move');
+  const comment = fd.get('comment');
+  if (move === '')
+    return false;
+  let rate = fd.get('rate');
+  if (rate === "")
+    rate = null;
+  position.addMove(move, rate, comment);
+  event.target.reset();
+});
+
+document.getElementById('back').addEventListener('click', (event) => {
+  game.undo();
+  position.update();
+});

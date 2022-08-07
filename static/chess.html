@@ -10,7 +10,27 @@
   <body>
     <div id="layout">
       <div id="board"></div>
-      <div id="moves"></div>
+      <div id="controls">
+        <div id="moves"></div>
+        <div id="buttons">
+          <form id="addMove">
+            <div>
+              <input type="text" name="move" placeholder="Move">
+              <select name="rate">
+                <option value="0">Playable</option>
+                <option value="1">Best</option>
+                <option value="-1">Mistake</option>
+                <option value="">Unrated</option>
+              </select>
+            </div>
+            <div>
+              <textarea name="comment" placeholder="Comment"></textarea>
+            </div>
+            <button type="submit">Add move</button>
+          </form>
+          <button type="button" id="back">Back</div>
+        </div>
+      </div>
     </div>
     <script src="/static/vendor/jquery/jquery-3.6.0.js"></script>
     <script src="/static/vendor/chess.js/chess-0.10.2.min.js"></script>

@@ -7,3 +7,22 @@
 #board {
   width: 800px;
 }
+
+.best-move {
+  font-weight: bold;
+  color: green;
+}
+
+.mistake-move {
+  font-weight: bold;
+  color: red;
+}
+
+.playable-move {
+  font-weight: normal;
+}
+
+.unrated-move {
+  font-weight: normal;
+  color: gray;
+}
