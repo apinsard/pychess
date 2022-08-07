@@ -49,7 +49,6 @@ class Piece(metaclass=PieceMetaclass):
         BISHOP: "Bishop",
     }
 
-
     __cached_pieces = {}
 
     def __new__(cls, role, color):
@@ -297,7 +296,7 @@ class Position:
         its position is encoded on the next 6 bits.
 
         The next bit represents the possibility of an en-passant capture.
-        In such case, the column of the capturable pawn is encoded on the next 
+        In such case, the column of the capturable pawn is encoded on the next
         3 bits.
 
         Then for each cell from a1 to h8, omitting the kings cells and the
@@ -337,7 +336,7 @@ class Position:
         fen = ''
         for row in range(7, -1, -1):
             for col in range(8):
-                cell = self[col,row]
+                cell = self[col, row]
                 if cell is None:
                     fen += '1'
                 else:
@@ -399,6 +398,15 @@ class Position:
         if rook is None or king is None:
             return False
         return rook == Piece(Piece.ROOK, color) and king == Piece(Piece.KING, color)
+
+    def _might_enpassant(self, col):
+        row = 5 if self.next_to_move == Piece.WHITE else 4
+        might_ep = False
+        if col > 0:
+            might_ep = might_ep or self[col-1, row] == Piece(Piece.PAWN, self.next_to_move)
+        if col < 7:
+            might_ep = might_ep or self[col+1, row] == Piece(Piece.PAWN, self.next_to_move)
+        return might_ep
 
     @classmethod
     def decompress(cls, bitstring):
@@ -478,10 +486,10 @@ class Position:
             for c in row:
                 if c.isnumeric():
                     for j in range(int(c)):
-                        position[col,7-i] = None
+                        position[col, 7-i] = None
                         col += 1
                 else:
-                    position[col,7-i] = Piece.from_fen(c)
+                    position[col, 7-i] = Piece.from_fen(c)
                     col += 1
 
         if len(parts) > 1 and parts[1] == 'b':
@@ -496,7 +504,9 @@ class Position:
             position._guess_castles()
 
         if len(parts) > 3 and parts[3] != '-':
-            position.enpassant = ord('a') - ord(parts[3][0].lower())
+            enpassant = ord('a') - ord(parts[3][0].lower())
+            if position._might_enpassant(enpassant):
+                position.enpassant = enpassant
 
         return position
 

@@ -1,20 +1,67 @@
 import argparse
+import json
+import re
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
+from urllib.parse import unquote as urldecode
+
+from ..db import JsonDatabase
+from ..types import Position
+from ..utils import b64encode
 
 
 class Handler(BaseHTTPRequestHandler):
 
+    @property
+    def db(self):
+        return self.server.db
+
     def do_GET(self):
-        filename = None
         if self.path == '/':
-            filename = 'chess.html'
+            self.serve_static('chess.html')
         elif self.path.startswith('/static/'):
-            filename = self.path[8:]
-        if filename:
-            self.serve_static(filename)
+            self.serve_static(self.path[8:])
+        elif self.path.startswith('/api/'):
+            self.serve_api(self.path[5:])
         else:
             self.send_error(404)
+
+    def do_POST(self):
+        if self.path.startswith('/api/'):
+            self.serve_api(self.path[5:])
+        else:
+            self.send_error(404)
+
+    def serve_api(self, endpoint):
+        endpoint = urldecode(endpoint)
+        response = None
+        if m := re.match('^position/fen/(.*)$', endpoint):
+            position = Position.load_fen(m[1])
+            position_id = b64encode(position)
+            response = {
+                'id': position_id,
+                'moves': self.db.get(position_id),
+            }
+        elif m := re.match('^position/save/([A-Za-z0-9_-]+)$', endpoint):
+            position_id = m[1]
+            data = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode())
+            if 'moves' in data:
+                data = data['moves']
+            self.db.set(position_id, data)
+            self.db.save()
+            response = {
+                'id': position_id,
+                'moves': self.db.get(position_id),
+            }
+        if response is not None:
+            self.render_json(response)
+        else:
+            self.send_error(404)
+
+    def render_json(self, response):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(response).encode())
 
     def serve_static(self, filename):
         content_type = self.get_file_mime_type(filename)
@@ -47,4 +94,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     server_address = (args.listen, args.port)
     httpd = HTTPServer(server_address, Handler)
-    httpd.serve_forever() 
+    httpd.db = JsonDatabase('data/db.json')
+    httpd.serve_forever()
