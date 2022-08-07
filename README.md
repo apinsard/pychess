@@ -1,6 +1,15 @@
 # PyChess
 
-## Examples
+## Start web server
+
+```
+python -m chess.server
+```
+
+Then visit http://127.0.0.1:8000/ to interact with the chessboard.
+
+
+## Console Examples
 
 ```python
 >>> from chess.types import Position, Piece
