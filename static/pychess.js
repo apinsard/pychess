@@ -34,7 +34,7 @@ class Position {
         else
           moveClass = 'playable-move';
       }
-      list += `<dt class="${moveClass}">${k}</dt><dd>${comment}</dd>`;
+      list += `<dt><span class="move ${moveClass}">${k}</span></dt><dd>${comment}</dd>`;
     }
     list += '</dl>';
     document.getElementById('moves').innerHTML = list;
@@ -96,6 +96,9 @@ const board = Chessboard('board', {
     });
     if (move === null)
       return 'snapback';
+    if (!(move.san in position.moves)) {
+      position.addMove(move.san);
+    }
   },
   onSnapEnd: function() {
     position.update();
@@ -108,7 +111,7 @@ const position = new Position(game, board);
 document.getElementById('addMove').addEventListener('submit', (event) => {
   event.preventDefault();
   const fd = new FormData(event.target);
-  const move = fd.get('move');
+  const move = fd.get('move').trim();
   const comment = fd.get('comment');
   if (move === '')
     return false;
@@ -117,9 +120,31 @@ document.getElementById('addMove').addEventListener('submit', (event) => {
     rate = null;
   position.addMove(move, rate, comment);
   event.target.reset();
+  if (event.submitter.name === 'play') {
+    if(game.move(move)) {
+      position.update();
+    }
+  }
 });
 
 document.getElementById('back').addEventListener('click', (event) => {
   game.undo();
   position.update();
+});
+document.getElementById('flip').addEventListener('click', (event) => {
+  board.flip();
+  position.update();
+});
+document.addEventListener('keyup', (event) => {
+  if (event.key === 'ArrowLeft') {
+    game.undo();
+    position.update();
+  }
+});
+document.getElementById('moves').addEventListener('click', (event) => {
+  if (event.target.classList.contains('move')) {
+    const move = game.move(event.target.textContent.trim());
+    if (move !== null)
+      position.update();
+  }
 });

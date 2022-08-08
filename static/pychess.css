@@ -1,6 +1,4 @@
 #layout {
-  height: 100vh;
-  width: 100vw;
   display: flex;
 }
 
@@ -8,18 +6,38 @@
   width: 800px;
 }
 
+#controls {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+#moves dt {
+  margin-top: 10px;
+}
+
+.move {
+  border-radius: 3px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
 .best-move {
   font-weight: bold;
-  color: green;
+  background-color: green;
+  color: white;
 }
 
 .mistake-move {
   font-weight: bold;
-  color: red;
+  background-color: red;
+  color: white;
 }
 
 .playable-move {
   font-weight: normal;
+  color: black;
+  border: 1px solid black;
 }
 
 .unrated-move {

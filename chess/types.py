@@ -136,30 +136,96 @@ class Piece(metaclass=PieceMetaclass):
         return cls(role, color)
 
 
+class Castles:
+
+    WK = 8
+    WQ = 4
+    BK = 2
+    BQ = 1
+
+    @property
+    def wk(self):
+        """White may O-O"""
+        return self.can_castle(self.WK)
+
+    @wk.setter
+    def wk(self, value):
+        return self.set_castle(self.WK, value)
+
+    @property
+    def wq(self):
+        """White may O-O-O"""
+        return self.can_castle(self.WQ)
+
+    @wq.setter
+    def wq(self, value):
+        return self.set_castle(self.WQ, value)
+
+    @property
+    def bk(self):
+        """Black may O-O"""
+        return self.can_castle(self.BK)
+
+    @bk.setter
+    def bk(self, value):
+        return self.set_castle(self.BK, value)
+
+    @property
+    def bq(self):
+        """Black may O-O-O"""
+        return self.can_castle(self.BQ)
+
+    @bq.setter
+    def bq(self, value):
+        return self.set_castle(self.BQ, value)
+
+    def __init__(self, castles):
+        self.castles = castles
+
+    def can_castle(self, castle):
+        return self.castles & castle == castle
+
+    def set_castle(self, castle, value):
+        if value:
+            self.castles |= castle
+        else:
+            self.castles &= ~castle
+
+    def __int__(self):
+        return self.castles
+
+    def __bool__(self):
+        return bool(self.castles)
+
+    def __str__(self):
+        return self.as_fen()
+
+    def __repr__(self):
+        return "<chess.Castles: {}>".format(self)
+
+    def as_fen(self):
+        return ''.join([
+            'K' if self.wk else '',
+            'Q' if self.wq else '',
+            'k' if self.bk else '',
+            'q' if self.bq else '',
+        ]) or '-'
+
+
 class Position:
 
     @property
     def castles(self):
-        """Possible castles.
-
-        - WOO: White may O-O
-        - WOOO: White may O-O-O
-        - BOO: Black may O-O
-        - BOOO: Black may O-O-O
-        """
-        return {
-            'WOO': self._castles & 8 == 8,
-            'WOOO': self._castles & 4 == 4,
-            'BOO': self._castles & 2 == 2,
-            'BOOO': self._castles & 1 == 1,
-        }
+        """Possible castles."""
+        return self._castles
 
     @castles.setter
     def castles(self, value):
         """Possible castles can be given as:
-            - A dict mapping the castle type ('WOO', 'WOOO', 'BOO', 'BOOO') to a boolean
+            - A Castles instance
+            - A dict mapping the castle type ('wk', 'wq', 'bk', 'bq') to a boolean
               (False values may be omitted)
-            - A 4-uple or list of booleans in order (WOO, WOOO, BOO, BOOO)
+            - A 4-uple or list of booleans in order (wk, wq, bk, bq)
             - A 4-bit string in order mentionned above (may be prefixed with 0b or not)
             - The integer representation of the 4-bit string mentionned above
 
@@ -170,10 +236,10 @@ class Position:
             value = self._guess_castles()
         if isinstance(value, dict):
             value = (
-                value.get('WOO', False),
-                value.get('WOOO', False),
-                value.get('BOO', False),
-                value.get('BOOO', False),
+                value.get('wk', False),
+                value.get('wq', False),
+                value.get('bk', False),
+                value.get('bq', False),
             )
         if isinstance(value, (tuple, list)):
             assert len(value) == 4
@@ -183,6 +249,8 @@ class Position:
                 value = value[2:]
             assert len(value) == 4
             value = int(value, 2)
+        if not isinstance(value, Castles):
+            value = Castles(value)
         self._castles = value
 
     @property
@@ -311,10 +379,10 @@ class Position:
         """
         bitstring = ''
         bitstring += str(self.next_to_move)
-        bitstring += bin(self._castles)[2:].zfill(4)
-        if not (self.castles['WOO'] or self.castles['WOOO']):
+        bitstring += bin(int(self.castles))[2:].zfill(4)
+        if not (self.castles.wk or self.castles.wq):
             bitstring += bin(self.get_king_position(Piece.WHITE))[2:].zfill(6)
-        if not (self.castles['BOO'] or self.castles['BOOO']):
+        if not (self.castles.bk or self.castles.bq):
             bitstring += bin(self.get_king_position(Piece.BLACK))[2:].zfill(6)
         bitstring += bin(self._enpassant)[2:]
         for i, cell in enumerate(self.cells):
@@ -350,18 +418,7 @@ class Position:
         else:
             fen += 'b'
 
-        fen += ' '
-        if any(self.castles.values()):
-            if self.castles['WOO']:
-                fen += 'K'
-            if self.castles['WOOO']:
-                fen += 'Q'
-            if self.castles['BOO']:
-                fen += 'k'
-            if self.castles['BOOO']:
-                fen += 'q'
-        else:
-            fen += '-'
+        fen += ' ' + self.castles.as_fen()
 
         fen += ' '
         if self.enpassant:
@@ -377,18 +434,18 @@ class Position:
 
     def _is_deterministic_cell(self, pos, piece):
         king = piece and piece.role == Piece.KING
-        a1 = pos == 0 and self.castles['WOOO']
-        h1 = pos == 7 and self.castles['WOO']
-        a8 = pos == 56 and self.castles['BOOO']
-        h8 = pos == 63 and self.castles['BOO']
+        a1 = pos == 0 and self.castles.wq
+        h1 = pos == 7 and self.castles.wk
+        a8 = pos == 56 and self.castles.bq
+        h8 = pos == 63 and self.castles.bk
         return king or a1 or h1 or a8 or h8
 
     def _guess_castles(self):
         return {
-            'WOO': self._guess_castle('h1'),
-            'WOOO': self._guess_castle('a1'),
-            'BOO': self._guess_castle('h8'),
-            'BOOO': self._guess_castle('a8'),
+            'wk': self._guess_castle('h1'),
+            'wq': self._guess_castle('a1'),
+            'bk': self._guess_castle('h8'),
+            'bq': self._guess_castle('a8'),
         }
 
     def _guess_castle(self, rook_pos):
@@ -423,22 +480,22 @@ class Position:
         position.castles = bitstring[1:5]
         bitstring = bitstring[5:]
 
-        if position.castles['WOO'] or position.castles['WOOO']:
+        if position.castles.wk or position.castles.wq:
             w_king_pos = 'e1'
-            if position.castles['WOO']:
+            if position.castles.wk:
                 position['h1'] = Piece.WHITE_ROOK
-            if position.castles['WOOO']:
+            if position.castles.wq:
                 position['a1'] = Piece.WHITE_ROOK
         else:
             w_king_pos = int(bitstring[:6], 2)
             bitstring = bitstring[6:]
         position[w_king_pos] = Piece.WHITE_KING
 
-        if position.castles['BOO'] or position.castles['BOOO']:
+        if position.castles.bk or position.castles.bq:
             b_king_pos = 'e8'
-            if position.castles['BOO']:
+            if position.castles.bk:
                 position['h8'] = Piece.BLACK_ROOK
-            if position.castles['BOOO']:
+            if position.castles.bq:
                 position['a8'] = Piece.BLACK_ROOK
         else:
             b_king_pos = int(bitstring[:6], 2)
@@ -496,10 +553,12 @@ class Position:
             position.next_to_move = Piece.BLACK
 
         if len(parts) > 2:
-            position.castles['WOO'] = 'K' in parts[2]
-            position.castles['WOOO'] = 'Q' in parts[2]
-            position.castles['BOO'] = 'k' in parts[2]
-            position.castles['BOOO'] = 'q' in parts[2]
+            position.castles = {
+                'wk': 'K' in parts[2],
+                'wq': 'Q' in parts[2],
+                'bk': 'k' in parts[2],
+                'bq': 'q' in parts[2],
+            }
         else:
             position._guess_castles()
 
