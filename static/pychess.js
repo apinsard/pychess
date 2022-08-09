@@ -1,3 +1,12 @@
+function escapeHtml(unsafe) {
+    return unsafe
+         .replaceAll('&', "&amp;")
+         .replaceAll('<', "&lt;")
+         .replaceAll('>', "&gt;")
+         .replaceAll('"', "&quot;")
+         .replaceAll("'", "&#039;");
+}
+
 class Position {
 
   constructor(game, board) {
@@ -24,7 +33,7 @@ class Position {
     this.moves = moves;
     let list = '<dl>';
     for (const [k, v] of Object.entries(moves)) {
-      const comment = v.comment || '';
+      const comment = (v.comment || '').split('\n').map(escapeHtml).join('<br>');
       let moveClass = 'unrated-move';
       if ('rate' in v) {
         if (v.rate > 0)
@@ -118,11 +127,16 @@ document.getElementById('addMove').addEventListener('submit', (event) => {
   let rate = fd.get('rate');
   if (rate === "")
     rate = null;
-  position.addMove(move, rate, comment);
-  event.target.reset();
-  if (event.submitter.name === 'play') {
-    if(game.move(move)) {
-      position.update();
+
+  if (event.submitter.name === 'delete') {
+    position.deleteMove(move);
+  }
+  else {
+    position.addMove(move, rate, comment);
+    event.target.reset();
+    if (event.submitter.name === 'play') {
+      if (game.move(move))
+        position.update();
     }
   }
 });
@@ -142,9 +156,19 @@ document.addEventListener('keyup', (event) => {
   }
 });
 document.getElementById('moves').addEventListener('click', (event) => {
-  if (event.target.classList.contains('move')) {
-    const move = game.move(event.target.textContent.trim());
-    if (move !== null)
-      position.update();
+  if (event.target.classList.contains('move') && event.button == 0) {
+    const moveId = event.target.textContent.trim();
+    if (event.ctrlKey) {
+      const moveData = position.moves[moveId];
+      const form = document.getElementById('addMove');
+      form.move.value = moveId;
+      form.rate.value = moveData.rate || '0';
+      form.comment.value = moveData.comment || '';
+    }
+    else {
+      const move = game.move(moveId);
+      if (move !== null)
+        position.update();
+    }
   }
 });
