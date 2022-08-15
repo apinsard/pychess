@@ -32,6 +32,7 @@ class Position {
   setMoves(moves) {
     this.moves = moves;
     let list = '<dl>';
+    let tabIndex = 1;
     for (const [k, v] of Object.entries(moves)) {
       const comment = (v.comment || '').split('\n').map(escapeHtml).join('<br>');
       let moveClass = 'unrated-move';
@@ -43,10 +44,16 @@ class Position {
         else
           moveClass = 'playable-move';
       }
-      list += `<dt><span class="move ${moveClass}">${k}</span></dt><dd>${comment}</dd>`;
+      list += `<dt><span tabindex="${tabIndex}" class="move ${moveClass}">${k}</span></dt><dd>${comment}</dd>`;
+      tabIndex++;
     }
     list += '</dl>';
     document.getElementById('moves').innerHTML = list;
+    const firstMove = document.querySelector('.move');
+    if (firstMove)
+      firstMove.focus();
+    else
+      document.activeElement.blur();
   }
 
   addMove(move, rate=null, comment="") {
@@ -150,9 +157,39 @@ document.getElementById('flip').addEventListener('click', (event) => {
   position.update();
 });
 document.addEventListener('keyup', (event) => {
-  if (event.key === 'ArrowLeft') {
+  if (document.activeElement.form) {
+    if (event.key === 'Enter') {
+      if (event.ctrlKey)
+        document.activeElement.form.add.click();
+      else if (event.shiftKey)
+        document.activeElement.form.play.click();
+    }
+  }
+  else if (event.key === 'ArrowLeft') {
     game.undo();
     position.update();
+  }
+  else if (document.activeElement.classList.contains('move')) {
+    if (event.key === 'Enter') {
+      document.activeElement.click();
+    }
+    else {
+      const moveId = document.activeElement.textContent.trim();
+      const rate = ['M', 'P', 'B'].indexOf(event.key.toUpperCase()) - 1;
+      if (rate >= -1) {
+        const moveData = position.moves[moveId];
+        if (event.shiftKey) {
+          const form = document.getElementById('addMove');
+          form.move.value = moveId;
+          form.rate.value = rate;
+          form.comment.value = moveData.comment || '';
+          form.comment.focus();
+        }
+        else {
+          position.addMove(moveId, rate, moveData.comment);
+        }
+      }
+    }
   }
 });
 document.getElementById('moves').addEventListener('click', (event) => {
@@ -164,6 +201,7 @@ document.getElementById('moves').addEventListener('click', (event) => {
       form.move.value = moveId;
       form.rate.value = moveData.rate || '0';
       form.comment.value = moveData.comment || '';
+      form.comment.focus();
     }
     else {
       const move = game.move(moveId);
